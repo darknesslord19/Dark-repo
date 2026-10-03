@@ -1,0 +1,8 @@
+{
+  "name": "Dark-repo",
+  "description": "Dark-repo eklenti deposu",
+  "manifestVersion": 1,
+  "pluginLists": [
+    "https://raw.githubusercontent.com/darknesslord19/Dark-repo/builds/plugins.json"
+  ]
+}
