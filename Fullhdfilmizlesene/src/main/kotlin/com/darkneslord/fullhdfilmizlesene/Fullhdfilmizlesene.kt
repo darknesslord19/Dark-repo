@@ -5,6 +5,8 @@ import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.utils.*
+import com.lagradost.cloudstream3.network.WebViewResolver
+import com.lagradost.cloudstream3.network.CloudflareKiller
 import org.json.JSONObject
 import org.jsoup.nodes.Element
 import java.net.URI
@@ -15,7 +17,7 @@ import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
 // Bu dosya cloudstream_super.py tarafindan otomatik uretildi.
-// Notlar: sayfalama dogrulanamadi; Film sayfasinda iframe/alternatif kaynak yok (video JS ile sonradan ekleniyor olabilir); video zinciri tam dogrulanamadi
+// Notlar: site elle/rapordan uretildi: secicilerin gercek sayfada dogrulanmasi gerekir
 class Fullhdfilmizlesene : MainAPI() {
     override var mainUrl = "https://www.fullhdfilmizlesene.now"
     override var name = "Fullhdfilmizlesene"
@@ -27,19 +29,36 @@ class Fullhdfilmizlesene : MainAPI() {
     private val ua =
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
     private val baseHeaders = mapOf("User-Agent" to ua, "Accept" to "*/*")
+    private val cfKiller = CloudflareKiller()   // Cloudflare 403/503 dogrulamasini asar
 
     // ---------------------------------------------------------------- ANA SAYFA
     override val mainPage = mainPageOf(
-        "$mainUrl/" to "Son Eklenenler"
+        "$mainUrl/" to "Son Eklenenler",
+        "$mainUrl/en-cok-izlenen-filmler" to "En Çok İzlenen Filmler",
+        "$mainUrl/seri-filmler" to "Seri Filmler",
+        "$mainUrl/filmizle/aile-filmleri" to "Aile Filmleri",
+        "$mainUrl/filmizle/aksiyon-filmleri" to "Aksiyon Filmleri",
+        "$mainUrl/filmizle/animasyon-filmleri" to "Animasyon Filmleri",
+        "$mainUrl/filmizle/bilim-kurgu-filmleri" to "Bilim Kurgu Filmleri",
+        "$mainUrl/filmizle/dram-filmler-izle" to "Dram Filmleri",
+        "$mainUrl/filmizle/komedi-filmleri" to "Komedi Filmleri",
+        "$mainUrl/filmizle/korku-filmleri" to "Korku Filmleri",
+        "$mainUrl/yil/2026-filmleri-izle" to "2026 Filmleri",
+        "$mainUrl/yil/2025-filmler-izle" to "2025 Filmleri",
+        "$mainUrl/yil/2024-filmleri-izle-1" to "2024 Filmleri",
+        "$mainUrl/filmizle/turkce-dublaj-filmler-1" to "Türkçe Dublaj",
+        "$mainUrl/filmizle/turkce-altyazili-filmler-1" to "Türkçe Altyazılı",
+        "$mainUrl/filmizle/1080p-filmler-2" to "1080p Filmler",
+        "$mainUrl/filmizle/4k-filmler" to "4K Filmler"
     )
 
     private fun pageUrl(base: String, page: Int): String =
-        if (page <= 1) base else base.trimEnd('/') + "/page/$page/"
+        if (page <= 1) base else if (base.trimEnd('/') == mainUrl) "$mainUrl/yeni-filmler/$page" else base.trimEnd('/') + "/$page"
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val items = try {
-            val doc = app.get(pageUrl(request.data, page), headers = baseHeaders).document
-            doc.select("div.film").mapNotNull { it.toSearchResult() }.distinctBy { it.url }
+            val doc = app.get(pageUrl(request.data, page), headers = baseHeaders, interceptor = cfKiller).document
+            doc.select("a[href*='/film/']:has(img)").mapNotNull { it.toSearchResult() }.distinctBy { it.url }
         } catch (e: Exception) {
             emptyList()
         }
@@ -49,48 +68,49 @@ class Fullhdfilmizlesene : MainAPI() {
     private fun Element.toSearchResult(): SearchResponse? {
         val a = selectFirst("a[href*='/film/']") ?: return null
         val href = fixUrlNull(a.attr("href")) ?: return null
-        val title = ((selectFirst("img")?.attr("alt")) ?: "").replace(Regex("""\s*(film(i)?\s+)?izle\s*$""", RegexOption.IGNORE_CASE), "").trim()
+        val title = ((attr("title").takeIf { it.isNotBlank() } ?: selectFirst("img")?.attr("alt")) ?: "").replace(Regex("""\s*(film(i)?\s+)?izle\s*$""", RegexOption.IGNORE_CASE), "").trim()
         if (title.isBlank()) return null
-        val poster = fixUrlNull(selectFirst("img")?.attr("data-src"))
-        return newMovieSearchResponse(title, href, TvType.Movie) { this.posterUrl = poster }
-    }
-
-
-    private fun Element.toSearchResultSearch(): SearchResponse? {
-        val a = selectFirst("a[href*='/film/']") ?: return null
-        val href = fixUrlNull(a.attr("href")) ?: return null
-        val title = ((selectFirst("img")?.attr("alt")) ?: "").replace(Regex("""\s*(film(i)?\s+)?izle\s*$""", RegexOption.IGNORE_CASE), "").trim()
-        if (title.isBlank()) return null
-        val poster = fixUrlNull(selectFirst("img")?.attr("data-src"))
+        val poster = fixUrlNull(selectFirst("img")?.let { i -> listOf("data-src", "data-lazy-src", "data-original", "src").map { i.attr(it) }.firstOrNull { it.isNotBlank() && !it.startsWith("data:") } })
         return newMovieSearchResponse(title, href, TvType.Movie) { this.posterUrl = poster }
     }
 
     // ---------------------------------------------------------------- ARAMA
+    // Arama adresi dogrulanamadi: yaygin kaliplar sirayla denenir, ilk sonuc veren kullanilir
     override suspend fun search(query: String): List<SearchResponse> {
         val q = URLEncoder.encode(query, "UTF-8")
-        return try {
-            val doc = app.get("$mainUrl/arama/$q/", headers = baseHeaders).document
-            doc.select("li.film").mapNotNull { it.toSearchResultSearch() }.distinctBy { it.url }
-        } catch (e: Exception) {
-            emptyList()
+        val urls = listOf(
+            "$mainUrl/arama/$q",
+            "$mainUrl/?s=$q",
+            "$mainUrl/ara/$q",
+            "$mainUrl/search/$q",
+            "$mainUrl/index.php?do=search&subaction=search&story=$q"
+        )
+        for (u in urls) {
+            try {
+                val doc = app.get(u, headers = baseHeaders, interceptor = cfKiller).document
+                val r = doc.select("a[href*='/film/']:has(img)").mapNotNull { it.toSearchResult() }.distinctBy { it.url }
+                if (r.isNotEmpty()) return r
+            } catch (e: Exception) {
+            }
         }
+        return emptyList()
     }
 
     override suspend fun quickSearch(query: String): List<SearchResponse> = search(query)
 
     // ---------------------------------------------------------------- DETAY
     override suspend fun load(url: String): LoadResponse? {
-        val doc = app.get(url, headers = baseHeaders).document
+        val doc = app.get(url, headers = baseHeaders, interceptor = cfKiller).document
         val title = (doc.selectFirst("h1")?.text() ?: doc.selectFirst("meta[property=og:title]")?.attr("content"))?.trim()
             ?.replace(Regex("""\s*(film(i)?\s+)?izle\s*(\|.*)?$""", RegexOption.IGNORE_CASE), "")?.trim()
             ?.takeIf { it.isNotBlank() } ?: return null
         val poster = fixUrlNull(doc.selectFirst("meta[property=og:image]")?.attr("content")?.takeIf { it.isNotBlank() } ?: ldValues(doc, "image").firstOrNull())
-        val plot = (doc.selectFirst("div.film-ozeti")?.text() ?: doc.selectFirst("meta[property=og:description]")?.attr("content"))?.trim()
+        val plot = doc.selectFirst("meta[property=og:description]")?.attr("content")?.trim() ?: ldValues(doc, "description").firstOrNull()
         val year = Regex("""\b(19|20)\d{2}\b""").find(title)?.value?.toIntOrNull()
             ?: Regex("""(?iu)(?:y[ıi]l|vizyon)\D{0,20}((?:19|20)\d{2})""").find(doc.text())?.groupValues?.get(1)?.toIntOrNull()
             ?: ldValues(doc, "datePublished").firstOrNull()?.take(4)?.toIntOrNull()
-        val tags = ldValues(doc, "genre")
-        val actors = doc.select("div.dd a[href*='/oyuncu/']").map { it.text().trim() }.filter { it.isNotBlank() }.ifEmpty { ldValues(doc, "actor") }.distinct()
+        val tags = doc.select("main a[href*='/filmizle/'], article a[href*='/filmizle/']").map { it.text().trim() }.filter { it.isNotBlank() }.ifEmpty { ldValues(doc, "genre") }.distinct()
+        val actors = emptyList<String>().ifEmpty { labelValue(doc, "Oyuncular")?.split(",")?.map { it.trim() }?.filter { it.isNotBlank() } ?: emptyList() }.ifEmpty { ldValues(doc, "actor") }.distinct()
         val duration = Regex("""(?iu)(\d{1,2}):(\d{2})\s*(?:минут|мин|dk|min)""").find(doc.text())
             ?.let { m -> (m.groupValues[1].toInt() * 60 + m.groupValues[2].toInt()).takeIf { it > 0 } }
             ?: Regex("""(\d{2,3})\s*(?:dk|dakika|min)\b""", RegexOption.IGNORE_CASE).find(doc.text())?.groupValues?.get(1)?.toIntOrNull()
@@ -126,12 +146,13 @@ class Fullhdfilmizlesene : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val page = app.get(data, headers = baseHeaders).document
+        val resp = app.get(data, headers = baseHeaders, interceptor = cfKiller)
+        val page = resp.document
         val embeds = (page.select("iframe").mapNotNull { f ->
             listOf("data-litespeed-src", "data-src", "data-lazy-src", "src")
                 .map { f.attr(it) }
                 .firstOrNull { it.startsWith("http") || it.startsWith("//") }
-        })
+        } + deepEmbeds(resp.text, data))
             .map { fixUrl(it) }
             .filterNot { it.contains("youtube", true) }
             .distinct()
@@ -146,6 +167,34 @@ class Fullhdfilmizlesene : MainAPI() {
             }
             if (ok) found = true
         }
+        if (!found) {
+            // sayfa gercek bir (gizli) tarayicida yuklenir; oynatici medya istegi yakalanir
+            try {
+                val r = app.get(
+                    data, headers = baseHeaders,
+                    interceptor = WebViewResolver(
+                        Regex("""\.(m3u8|mpd|mp4)(\?|$)"""),
+                        script = "setTimeout(function(){['.part-btn','.ply','.play','[class*=play]'].forEach(function(s){var e=document.querySelector(s);if(e){try{e.click()}catch(x){}}})},1500);"
+                    )
+                )
+                val media = r.url
+                if (Regex("""\.(m3u8|mpd|mp4)""", RegexOption.IGNORE_CASE).containsMatchIn(media)) {
+                    callback.invoke(
+                        newExtractorLink(
+                            source = name,
+                            name = name,
+                            url = media,
+                            type = if (media.contains("m3u8", true)) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
+                        ) {
+                            this.referer = data
+                            this.quality = Qualities.Unknown.value
+                        }
+                    )
+                    found = true
+                }
+            } catch (e: Exception) {
+            }
+        }
         return found
     }
 
@@ -156,7 +205,7 @@ class Fullhdfilmizlesene : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val html = app.get(embed, referer = referer, headers = baseHeaders).text
+        val html = app.get(embed, referer = referer, headers = baseHeaders, interceptor = cfKiller).text
         val m = Regex("""bePlayer\(\s*(['"])(.*?)\1\s*,\s*(['"])(\{.*?\})\3""", RegexOption.DOT_MATCHES_ALL)
             .find(html) ?: return false
         val arg1 = m.groupValues[2]
@@ -245,7 +294,7 @@ class Fullhdfilmizlesene : MainAPI() {
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         val html = try {
-            app.get(embed, referer = referer, headers = baseHeaders).text.replace("\\/", "/")
+            app.get(embed, referer = referer, headers = baseHeaders, interceptor = cfKiller).text.replace("\\/", "/")
         } catch (e: Exception) {
             return false
         }
@@ -265,6 +314,43 @@ class Fullhdfilmizlesene : MainAPI() {
             )
         }
         return urls.isNotEmpty()
+    }
+
+
+    // iframe sayfada yoksa: JS icine gomulu iframe / atob(base64) / "embed":"..." / DooPlay REST ile gelen oynaticilar
+    private suspend fun deepEmbeds(html: String, pageUrl: String): List<String> {
+        val out = mutableListOf<String>()
+        val text = html.replace("\\/", "/").replace("\\u002F", "/").replace("&amp;", "&")
+        val texts = mutableListOf(text)
+        Regex("""atob\(\s*[\x27\x22]([A-Za-z0-9+/=_-]{16,})[\x27\x22]\s*\)""").findAll(text).forEach {
+            try {
+                texts.add(String(Base64.decode(it.groupValues[1], Base64.DEFAULT)))
+            } catch (e: Exception) {
+            }
+        }
+        for (t in texts) {
+            Regex("""<iframe[^>]+?(?:src|data-src)\s*=\s*\\?[\x27\x22]([^\x27\x22\\ >]+)""", RegexOption.IGNORE_CASE)
+                .findAll(t).forEach { out.add(it.groupValues[1]) }
+            Regex("""\x22(?:embed_url|embedUrl|embed|iframe|player|video_url|videoUrl|file|source)\x22\s*:\s*\x22(https?:[^\x22]+)\x22""")
+                .findAll(t).forEach { out.add(it.groupValues[1]) }
+        }
+        // DooPlay benzeri: data-post + data-nume
+        val doc = org.jsoup.Jsoup.parse(html)
+        for (el in doc.select("[data-post][data-nume]").take(6)) {
+            val post = el.attr("data-post")
+            val nume = el.attr("data-nume")
+            val type = el.attr("data-type").ifBlank { "movie" }
+            try {
+                val r = app.get("$mainUrl/wp-json/dooplayer/v2/$post/$type/$nume", referer = pageUrl, headers = baseHeaders, interceptor = cfKiller).text
+                    .replace("\\/", "/")
+                Regex("""(?:embed_url|src)\x22?\s*[:=]\s*\\?\x22?\\?[\x27\x22]?(https?:[^\x27\x22\\ >]+)""")
+                    .find(r)?.let { out.add(it.groupValues[1]) }
+            } catch (e: Exception) {
+            }
+        }
+        return out.map { fixUrl(it) }
+            .filterNot { it.contains("youtube", true) || Regex("""\.(js|css|jpe?g|png|webp|svg|gif)(\?|$)""", RegexOption.IGNORE_CASE).containsMatchIn(it) }
+            .distinct()
     }
 
 }
