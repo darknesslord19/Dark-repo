@@ -1,2 +1,2 @@
-rootProject.name = "Dark-repo"
-include("DarkRepo")
+rootProject.name = "TavsiyeFilmTest"
+include("TavsiyeFilmTest")
