@@ -1,2 +1,2 @@
-rootProject.name = "Fullhdfilmizlesene"
-include("Fullhdfilmizlesene")
+rootProject.name = "Sinematv"
+include("Sinematv")
