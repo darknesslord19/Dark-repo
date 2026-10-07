@@ -33,6 +33,6 @@ jobs:
       - name: Upload CS3
         uses: actions/upload-artifact@v4
         with:
-          name: Filmmakinesi-CS3
+          name: Dizipal2136-CS3
           path: '**/*.cs3'
           if-no-files-found: error
