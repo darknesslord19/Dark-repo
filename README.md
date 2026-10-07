@@ -1,11 +1,15 @@
-# TavsiyeFilmTest CS3
+# Tavsiyefilmizle CS3
 
-CloudStream için katalog/arama/detay öğrenme örneğidir.
+CloudStream icin cloudstream_super.py ile otomatik uretilen eklenti projesi.
 
 ## GitHub Actions
 
-Bu repo GitHub'a yüklendiğinde `main` veya `master` branch'e yapılan push ile otomatik derlenir. Ayrıca Actions > Build CloudStream CS3 > Run workflow ile elle başlatılabilir.
+Bu repo GitHub'a yuklendiginde `main` veya `master` branch'e yapilan push ile otomatik derlenir.
+Ayrica Actions > Build CloudStream CS3 > Run workflow ile elle baslatilabilir.
 
-Derleme tamamlandığında workflow sayfasındaki **Artifacts** bölümünden `TavsiyeFilmTest-CS3` paketini indirebilirsin.
+Derleme tamamlaninca workflow sayfasindaki **Artifacts** bolumunden `Tavsiyefilmizle-CS3` paketini indirebilirsin.
+Icinde her eklenti icin bir `.cs3` dosyasi bulunur.
 
-Bu örnekte `loadLinks()` yayın/stream URL'si çıkarmak için kullanılmaz.
+## Moduller
+
+- `Tavsiyefilmizle` (com.darkneslord.tavsiyefilmizle)
