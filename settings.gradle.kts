@@ -1,2 +1,2 @@
-rootProject.name = "Ddizimom"
-include("Ddizimom")
+rootProject.name = "Fullhdfilmizlesene"
+include("Fullhdfilmizlesene")
