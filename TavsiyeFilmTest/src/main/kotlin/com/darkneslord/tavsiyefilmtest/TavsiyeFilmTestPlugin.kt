@@ -5,8 +5,9 @@ import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
 import com.lagradost.cloudstream3.plugins.Plugin
 
 @CloudstreamPlugin
-class TavsiyeFilmTestPlugin : Plugin() {
+class TavsiyefilmizlePlugin : Plugin() {
     override fun load(context: Context) {
-        registerMainAPI(TavsiyeFilmTest())
+        registerMainAPI(Tavsiyefilmizle())
     }
 }
+
