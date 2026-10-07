@@ -1,52 +1,38 @@
-name: Build
+name: Build CloudStream CS3
 
 on:
   push:
     branches: [ main, master ]
-    paths-ignore: [ '*.md', 'repos.json' ]
   workflow_dispatch:
-
-concurrency:
-  group: "build"
-  cancel-in-progress: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
-      - uses: actions/checkout@v4
-        with:
-          path: src
-      - uses: actions/checkout@v4
-        with:
-          ref: builds
-          path: builds
-        continue-on-error: true
-      - name: Hazirla
-        run: |
-          mkdir -p $GITHUB_WORKSPACE/builds
-      - uses: actions/setup-java@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 17
-      - uses: gradle/actions/setup-gradle@v4
+          java-version: '17'
+          cache: gradle
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: 8.10.2
-      - name: Derle
-        working-directory: src
-        run: gradle make makePluginsJson
-      - name: Builds dalina kopyala
-        run: |
-          cp src/**/build/*.cs3 $GITHUB_WORKSPACE/builds || cp src/DarkRepo/build/*.cs3 $GITHUB_WORKSPACE/builds
-          cp src/build/plugins.json $GITHUB_WORKSPACE/builds
-      - name: Push
-        run: |
-          cd $GITHUB_WORKSPACE/builds
-          if [ ! -d .git ]; then git init -b builds; git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"; fi
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add .
-          git commit --amend -m "Build $GITHUB_SHA" || echo "degisiklik yok"
-          git push --force "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" HEAD:builds
+          gradle-version: '8.12'
+
+      - name: Build CS3
+        run: gradle make --stacktrace
+
+      - name: Show generated CS3
+        run: find . -type f -name '*.cs3' -print
+
+      - name: Upload CS3
+        uses: actions/upload-artifact@v4
+        with:
+          name: TavsiyeFilmTest-CS3
+          path: '**/*.cs3'
+          if-no-files-found: error
