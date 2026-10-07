@@ -1,8 +1,11 @@
-# Dark-repo
-1. GitHub'da `Dark-repo` adli repo ac, bu dosyalari yukle.
-2. `darknesslord19` yazan yerleri (DarkRepoPlugin.kt, repo.json) kendi kullanici adinla degistir.
-3. Settings > Actions > General > Workflow permissions: "Read and write" sec.
-4. Actions sekmesinden Build'i calistir. `builds` dalinda `DarkRepo.cs3` olusur.
-5. CloudStream'e su repo linkini ekle:
-   https://raw.githubusercontent.com/darknesslord19/Dark-repo/main/repo.json
-6. Eklentiyi yukle. Repolar `repos.json` dosyasindan otomatik eklenir; listeyi GitHub'dan duzenlemen yeter.
+# TavsiyeFilmTest CS3
+
+CloudStream için katalog/arama/detay öğrenme örneğidir.
+
+## GitHub Actions
+
+Bu repo GitHub'a yüklendiğinde `main` veya `master` branch'e yapılan push ile otomatik derlenir. Ayrıca Actions > Build CloudStream CS3 > Run workflow ile elle başlatılabilir.
+
+Derleme tamamlandığında workflow sayfasındaki **Artifacts** bölümünden `TavsiyeFilmTest-CS3` paketini indirebilirsin.
+
+Bu örnekte `loadLinks()` yayın/stream URL'si çıkarmak için kullanılmaz.
