@@ -1,4 +1,4 @@
-# Filmmakinesi CS3
+# Dizipal2136 CS3
 
 CloudStream icin cloudstream_super.py ile otomatik uretilen eklenti projesi.
 
@@ -7,9 +7,9 @@ CloudStream icin cloudstream_super.py ile otomatik uretilen eklenti projesi.
 Bu repo GitHub'a yuklendiginde `main` veya `master` branch'e yapilan push ile otomatik derlenir.
 Ayrica Actions > Build CloudStream CS3 > Run workflow ile elle baslatilabilir.
 
-Derleme tamamlaninca workflow sayfasindaki **Artifacts** bolumunden `Filmmakinesi-CS3` paketini indirebilirsin.
+Derleme tamamlaninca workflow sayfasindaki **Artifacts** bolumunden `Dizipal2136-CS3` paketini indirebilirsin.
 Icinde her eklenti icin bir `.cs3` dosyasi bulunur.
 
 ## Moduller
 
-- `Filmmakinesi` (com.darkneslord.filmmakinesi)
+- `Dizipal2136` (com.darkneslord.dizipal2136)
