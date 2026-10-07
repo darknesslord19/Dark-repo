@@ -11,7 +11,8 @@ import java.security.MessageDigest
 import javax.crypto.Cipher
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
-
+import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
+import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 // Bu dosya cloudstream_super.py tarafindan otomatik uretildi.
 // Notlar: dogrulanmamis kisim yok
 class Tavsiyefilmizle : MainAPI() {
